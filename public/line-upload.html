@@ -107,7 +107,13 @@ const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const FN_URL=SUPABASE_URL+"/functions/v1/line-extract";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"oneplace_dashboard_auth"}});
 const $=id=>document.getElementById(id);
-function parseSiteNo(name){ const m=name.match(/\[LINE\]\s*(\d+)/); return m?m[1]:null; }
+function parseSiteNo(name){
+  // 案場編號 = [LINE] 之後、第一個 "." 之前的數字（容忍 T6# 等前綴/空白）
+  let m = name.match(/\[LINE\][^.]*?(\d+)\s*\./);   // [LINE]T6#203.台中… → 203
+  if(!m) m = name.match(/(\d+)\s*\./);              // 沒有 [LINE] 也試「.前的數字」
+  if(!m) m = name.match(/(\d+)/);                   // 最後退路：任一數字
+  return m ? m[1] : null;
+}
 async function callFn(payload){
   const r=await fetch(FN_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
   return r.json();
