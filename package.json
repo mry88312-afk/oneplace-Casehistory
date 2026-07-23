@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "一方生活 · 案場歷程（LINE 對話上傳＋時間軸）獨立部署 — 靜態 HTML + Supabase",
   "scripts": {
-    "start": "npx -y serve -s public -l ${PORT:-3000}",
-    "dev": "npx -y serve -s public -l 3000"
+    "start": "npx -y serve public -l ${PORT:-3000}",
+    "dev": "npx -y serve public -l 3000"
   },
   "engines": {
     "node": ">=18"
