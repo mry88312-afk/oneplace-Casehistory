@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LINE 對話上傳 · 案場歷程</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--sub:#6b7685;--line:#e3e7ec;--green:#06C755;--red:#b91c1c;--amber:#b45309;--blue:#2563eb;--spine:#d63384;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:24px 16px 80px}
+  .wrap{max-width:820px;margin:0 auto}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  h1{font-size:20px}
+  .back{margin-left:auto;font-size:13px;color:var(--sub);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--card)}
+  .note{font-size:12.5px;color:var(--sub);margin-bottom:18px;line-height:1.7}
+  code{background:#eef1f4;border-radius:4px;padding:0 4px;font-size:12px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+
+  /* 覆蓋率列 */
+  .cov{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;font-size:13px}
+  .cov .big{font-size:15px;font-weight:700}
+  .cov .miss{color:var(--spine)}
+  .cov .done{color:var(--green)}
+  .covToggle{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;font-size:12.5px;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap}
+  .covToggle.on{background:var(--spine);border-color:var(--spine);color:#fff}
+  .missWrap{margin-top:12px;display:none}
+  .missWrap.open{display:block}
+  .missWrap input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px;font-family:inherit;outline:none;margin-bottom:8px}
+  .missWrap input:focus{border-color:var(--spine)}
+  .missList{max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .missList .m{display:flex;gap:8px;align-items:center;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--line)}
+  .missList .m:last-child{border-bottom:none}
+  .missList .m .no{color:var(--spine);font-weight:700;min-width:40px;font-variant-numeric:tabular-nums}
+  .missList .m .rg{margin-left:auto;font-size:11px;color:var(--sub)}
+
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:34px 16px;text-align:center;color:var(--sub);cursor:pointer;transition:.15s;background:var(--card)}
+  .drop.over{border-color:var(--green);background:#f0fdf4}
+  .drop b{color:var(--ink)}
+  .drop .hint{font-size:11.5px;margin-top:6px}
+  .forcebox{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer;line-height:1.5}
+  .forcebox input{margin-top:2px}
+  .forcebox .sub{color:var(--sub);font-size:11.5px}
+  .qlog{margin-top:10px;display:flex;flex-direction:column;gap:5px}
+  .qrow{display:flex;align-items:center;gap:8px;font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .qrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qrow .st{font-size:11px;font-weight:700;white-space:nowrap}
+  .st.q{color:var(--green)} .st.skip{color:var(--amber)} .st.err{color:var(--red)}
+  h2{font-size:15px;margin:20px 0 8px}
+  .jobs{display:flex;flex-direction:column;gap:6px}
+  .jrow{display:flex;align-items:center;gap:8px;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .jrow .site{font-weight:700;min-width:90px}
+  .jrow .fn{flex:1;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .jrow .badge{font-size:11px;font-weight:700;border-radius:999px;padding:2px 10px;white-space:nowrap}
+  .b-pending{background:#dcfce7;color:#166534}
+  .b-processing{background:#fef3c7;color:var(--amber)}
+  .b-done{background:#e0e7ff;color:#3730a3}
+  .b-error{background:#fee2e2;color:var(--red)}
+  .jrow .meta{font-size:11px;color:var(--sub);white-space:nowrap}
+  .empty{color:var(--sub);font-size:13px;padding:16px 0;text-align:center}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--amber);border-top-color:transparent;border-radius:50%;animation:s .7s linear infinite;vertical-align:-1px;margin-right:3px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>LINE 對話上傳</h1>
+    <a class="back" href="case-history.html">← 回案場歷程</a>
+  </div>
+  <div class="note">
+    把案場 LINE 群組對話匯出的 txt 丟進來即可。<b>上傳只是存檔、不會跑 AI</b>，之後由管理員統一下載處理。<br>
+    ✅ 檔名保留 LINE 預設格式（例：<code>[LINE]257.板橋區吳鳳路50巷21弄1號4樓.txt</code>），系統只認開頭的<b>案場編號</b>。<br>
+    ✅ <b>同一案場只要有人傳過，就會從下方「尚缺清單」消失，請勿重複上傳</b>；個資（身分證/電話/帳號）之後萃取時不會被收錄。
+  </div>
+
+  <!-- 覆蓋率 + 尚缺清單 -->
+  <div class="panel">
+    <div class="cov" id="covBar"><span class="sub">載入案場覆蓋率中…</span></div>
+    <div class="missWrap" id="missWrap">
+      <input id="missSearch" type="text" placeholder="搜尋尚缺案場（編號 / 名稱 / 區域）…" autocomplete="off">
+      <div class="missList" id="missList"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <b>點此選擇，或把 .txt 檔拖進來（可多個）</b>
+      <div class="hint">拖進來就會自動上傳存檔，不用再按按鈕</div>
+    </div>
+    <input type="file" id="file" accept=".txt" multiple style="display:none">
+    <label class="forcebox">
+      <input type="checkbox" id="force">
+      <span><b>強制重新上傳（覆蓋此案場）</b><br>
+      <span class="sub">預設不勾＝已經有人傳過的案場一律略過。只有當你確定要用新的對話覆蓋、之後重抓時才勾。</span></span>
+    </label>
+    <div class="qlog" id="qlog"></div>
+  </div>
+
+  <h2>上傳紀錄 <span style="font-size:11px;color:var(--sub);font-weight:400">（每 8 秒自動更新）</span></h2>
+  <div class="jobs" id="jobs"><div class="empty">載入中…</div></div>
+</div>
+
+<script>
+const SUPABASE_URL="https://dwoahbduwzfzqmwpvadj.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3b2FoYmR1d3pmenFtd3B2YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NDk0NjEsImV4cCI6MjA5MzAyNTQ2MX0.8muflwNj4YZ44UMG6OtFs61xpwIZxFaBP5sBCg4yadI";
+const FN_URL=SUPABASE_URL+"/functions/v1/line-extract";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"oneplace_dashboard_auth"}});
+const $=id=>document.getElementById(id);
+function parseSiteNo(name){ const m=name.match(/\[LINE\]\s*(\d+)/); return m?m[1]:null; }
+async function callFn(payload){
+  const r=await fetch(FN_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  return r.json();
+}
+
+// ── 覆蓋率 / 尚缺清單 ─────────────────────────────────────────
+let PROPS=[], missOpen=false, missKw="";
+const SKIP_REGION=new Set(["其他","辦公室"]);       // 非實體案場（帳務/課程/辦公室）
+const covered=p=>p.has_upload||p.has_line;            // 已上傳存檔 或 已有萃取事件
+const isMissing=p=>p.status==="active"&&!covered(p)&&!SKIP_REGION.has(p.region);
+async function loadProps(){
+  try{
+    const {data,error}=await sb.rpc("dashboard_timeline_properties");
+    if(error) throw error;
+    PROPS=data||[]; renderCov();
+  }catch(e){ $("covBar").innerHTML=`<span style="color:var(--red)">覆蓋率載入失敗：${e.message||e}</span>`; }
+}
+function renderCov(){
+  const done=PROPS.filter(covered).length;
+  const miss=PROPS.filter(isMissing).length;
+  $("covBar").innerHTML=
+    `<span>🟢 已上傳 <span class="big done">${done}</span> 個案場</span>`+
+    `<span>｜ 尚缺 <span class="big miss">${miss}</span> 個（進行中案場）</span>`+
+    `<button class="covToggle ${missOpen?"on":""}" id="covToggle">${missOpen?"✕ 收起清單":"查看尚缺清單"}</button>`;
+  $("covToggle").onclick=()=>{ missOpen=!missOpen; $("missWrap").classList.toggle("open",missOpen); renderCov(); if(missOpen) renderMiss(); };
+  if(missOpen) renderMiss();
+}
+function renderMiss(){
+  const k=missKw.trim().toLowerCase();
+  const hits=PROPS.filter(isMissing)
+    .filter(p=>!k||`${p.site_no} ${p.name||""} ${p.region||""} ${p.city||""}${p.district||""}`.toLowerCase().includes(k));
+  $("missList").innerHTML=hits.length
+    ? hits.map(p=>`<div class="m"><span class="no">${p.site_no}</span><span>${p.name||""}</span><span class="rg">${p.region||""}${(p.city||"")}${(p.district||"")}</span></div>`).join("")
+    : `<div class="m" style="color:var(--sub)">${k?"找不到符合的尚缺案場":"沒有尚缺案場 🎉"}</div>`;
+}
+$("missSearch").oninput=function(){ missKw=this.value; renderMiss(); };
+
+// ── 丟檔即上傳存檔（不跑 AI）──────────────────────────────────
+function addFiles(list){
+  [...list].filter(f=>/\.txt$/i.test(f.name)).forEach(f=>{
+    const rd=new FileReader();
+    rd.onload=async()=>{
+      const row=document.createElement("div");
+      row.className="qrow";
+      row.innerHTML=`<span class="nm">${f.name}</span><span class="st q">上傳中…</span>`;
+      $("qlog").prepend(row);
+      const st=row.querySelector(".st");
+      const sn=parseSiteNo(f.name);
+      if(!sn){ st.className="st err"; st.textContent="檔名沒有案場編號"; return; }
+      try{
+        const j=await callFn({mode:"enqueue",site_no:sn,source_file:f.name,transcript:rd.result,force:$("force").checked});
+        if(!j.ok){ st.className="st err"; st.textContent=j.error||"失敗"; }
+        else if(j.already_uploaded||j.skipped){ st.className="st skip"; st.textContent=`${j.name}：此案場已有人上傳，略過`; }
+        else { st.className="st q"; st.textContent=`${j.name}：已上傳 ✓`; }
+        loadJobs(); loadProps();   // 上傳成功→刷新尚缺清單
+      }catch(e){ st.className="st err"; st.textContent="連線錯誤"; }
+    };
+    rd.readAsText(f,"utf-8");
+  });
+}
+$("drop").onclick=()=>$("file").click();
+$("file").onchange=e=>{addFiles(e.target.files);e.target.value="";};
+["dragover","dragenter"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("over");}));
+["dragleave","drop"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.remove("over");}));
+$("drop").addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+
+// ── 上傳紀錄看板 ─────────────────────────────────────────────
+const BADGE={pending:["b-pending","已上傳待處理"],processing:["b-processing","萃取中"],done:["b-done","已萃取"],error:["b-error","失敗"]};
+async function loadJobs(){
+  try{
+    const j=await callFn({mode:"status"});
+    if(!j.ok) return;
+    const jobs=j.jobs||[];
+    if(!jobs.length){ $("jobs").innerHTML=`<div class="empty">還沒有任何上傳紀錄</div>`; return; }
+    $("jobs").innerHTML=jobs.map(x=>{
+      const [cls,txt]=BADGE[x.status]||["b-pending",x.status];
+      const spin=x.status==="processing"?'<span class="spin"></span>':"";
+      const meta=x.status==="done"?`萃取 ${x.extracted||0} 筆`:(x.status==="error"?(x.error||"").substring(0,60):x.created_at);
+      return `<div class="jrow"><span class="site">#${x.site_no} ${x.name}</span><span class="fn">${x.source_file}</span><span class="badge ${cls}">${spin}${txt}</span><span class="meta">${meta}</span></div>`;
+    }).join("");
+  }catch(e){}
+}
+loadProps();
+loadJobs();
+setInterval(loadJobs,8000);
+</script>
+</body>
+</html>

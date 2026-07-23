@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>案場歷程</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1c2430; --sub:#6b7685; --line:#e3e7ec;
+    --spine:#d63384;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:24px 16px 80px}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:20px;margin-bottom:4px}
+  .note{font-size:12px;color:var(--sub);margin-bottom:16px}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .panel .label{font-size:12px;color:var(--sub);margin-bottom:8px}
+
+  /* 案場選擇器（可搜尋下拉） */
+  .siteSel{position:relative}
+  .siteSel input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff}
+  .siteSel input:focus{border-color:var(--spine)}
+  .siteSel .list{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;
+    max-height:320px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.08);display:none}
+  .siteSel .list.open{display:block}
+  .siteSel .opt{padding:8px 14px;font-size:13.5px;cursor:pointer;display:flex;gap:8px;align-items:center}
+  .siteSel .opt:hover{background:var(--bg)}
+  .siteSel .opt .no{color:var(--spine);font-weight:700;font-variant-numeric:tabular-nums;min-width:36px}
+  .siteSel .opt .st{margin-left:auto;font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:4px;padding:0 6px}
+  .siteSel .opt .rg{font-size:11px;color:var(--sub)}
+  .siteSel .opt .lineok{font-size:10.5px;color:#06C755;border:1px solid #06C755;border-radius:4px;padding:0 5px;font-weight:700}
+  .siteSel .opt .linemiss{font-size:10.5px;color:#c0392b;border:1px solid #f0b4ac;background:#fdecea;border-radius:4px;padding:0 5px}
+  .siteSel .opt .linepend{font-size:10.5px;color:#b45309;border:1px solid #fcd34d;background:#fef3c7;border-radius:4px;padding:0 5px;font-weight:700}
+
+  /* LINE 覆蓋率列 */
+  .covbar{display:flex;align-items:center;gap:10px 14px;margin-top:10px;font-size:12px;color:var(--sub);flex-wrap:wrap}
+  .covbar b{font-variant-numeric:tabular-nums}
+  .covbar .miss{font-weight:700;color:#d63384}
+  .covToggle{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap}
+  .covToggle.on{background:#06C755;border-color:#06C755;color:#fff}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;font-size:13px;cursor:pointer;user-select:none;transition:.15s}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+  .search{flex:1;min-width:240px;position:relative}
+  .search input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 36px 9px 36px;font-size:14px;font-family:inherit;background:var(--card);outline:none}
+  .search input:focus{border-color:var(--spine)}
+  .search .icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:14px;pointer-events:none}
+  .search .clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--sub);font-size:16px;cursor:pointer;padding:2px 6px;display:none}
+  .sortbtn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap}
+  .count{font-size:12px;color:var(--sub);white-space:nowrap}
+  mark{background:#fde68a;border-radius:2px;padding:0 1px}
+
+  /* ── 直式時間軸：中央粗簍空脊柱＋左右交錯 ── */
+  .vtl{position:relative;padding:10px 0 30px}
+  .vtl::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:26px;transform:translateX(-50%);
+    background:#fff;border:3.5px solid var(--spine);border-radius:14px}
+  .vyear{position:relative;display:flex;justify-content:center;margin:22px 0 14px;z-index:2}
+  .vyear span{background:var(--spine);color:#fff;font-weight:700;font-size:15px;
+    border-radius:999px;padding:4px 22px;letter-spacing:1px}
+  .vrow{position:relative;display:flex;margin-bottom:16px;min-height:44px}
+  .vrow.L{justify-content:flex-start}
+  .vrow.R{justify-content:flex-end}
+  .vrow .node{position:absolute;left:50%;top:24px;width:11px;height:11px;border-radius:50%;background:var(--e);transform:translate(-50%,-50%);z-index:2}
+  .vrow .stem{position:absolute;top:23px;height:2px;background:var(--e)}
+  .vrow.L .stem{right:calc(50% + 13px);width:calc(50% - 13px - min(44%,420px) + 6px)}
+  .vrow.R .stem{left:calc(50% + 13px);width:calc(50% - 13px - min(44%,420px) + 6px)}
+  .vcard{width:min(44%,420px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;position:relative;border-top:3px solid var(--e)}
+  /* 里程碑（案場簽約 / 工務丈量 / 第一人入駐） */
+  .vrow.ms .node{width:17px;height:17px;background:#fff;border:4px solid var(--e)}
+  .vrow.ms .stem{height:3px}
+  .vrow.ms .vcard{border:2px solid var(--e);border-top-width:4px;box-shadow:0 3px 14px rgba(0,0,0,.10)}
+  .vrow.ms .title{font-size:15.5px}
+  .msbadge{font-size:11px;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 7px;font-weight:700}
+  .vcard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .vcard .date{font-size:12px;color:var(--e);font-weight:700;font-variant-numeric:tabular-nums}
+  .vcard .tag{font-size:11px;color:#fff;background:var(--e);border-radius:4px;padding:1px 7px}
+  .vcard .title{font-size:14px;font-weight:600;margin-top:4px}
+  .vcard .desc{font-size:12.5px;color:var(--sub);margin-top:2px;line-height:1.6}
+  .vcard .dur{font-size:11px;color:var(--e);margin-top:2px}
+  .empty{color:var(--sub);font-size:13px;padding:40px 0;text-align:center}
+  .loading{color:var(--sub);font-size:13px;padding:40px 0;text-align:center}
+  .err{color:#b91c1c;font-size:13px;padding:20px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;align-items:center;gap:10px">
+    <h1>案場歷程</h1>
+    <a href="line-upload.html" style="margin-left:auto;font-size:13px;font-weight:700;color:#fff;background:#06C755;border-radius:9px;padding:8px 14px;text-decoration:none">＋ 上傳 LINE 對話</a>
+  </div>
+  <div class="note">資料即時來自 Supabase（業主約、業主租金、案場切換、房間出租/退租、牌價、管理費、工務進場、修繕、請款）</div>
+
+  <div class="panel">
+    <div class="label">選擇案場（輸入編號 / 名稱 / 區域搜尋）</div>
+    <div class="siteSel">
+      <input id="siteBox" type="text" placeholder="載入案場清單中…" autocomplete="off" disabled>
+      <div class="list" id="siteList"></div>
+    </div>
+    <div class="covbar" id="covBar"></div>
+  </div>
+
+  <div class="panel">
+    <div class="label">事件類別（可多選）</div>
+    <div class="chips" id="catChips"></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <span class="icon">🔍</span>
+      <input id="searchBox" type="text" placeholder="搜尋事件…（例：退租、防水、R2、租金）">
+      <button class="clear" id="searchClear">✕</button>
+    </div>
+    <button class="sortbtn" id="sortBtn">排序：最新在上 ↓</button>
+    <span class="count" id="countLbl"></span>
+  </div>
+
+  <div id="errBox"></div>
+  <div class="vtl" id="vtl"><div class="empty">請先選擇案場</div></div>
+</div>
+
+<script>
+const SUPABASE_URL="https://dwoahbduwzfzqmwpvadj.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3b2FoYmR1d3pmenFtd3B2YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NDk0NjEsImV4cCI6MjA5MzAyNTQ2MX0.8muflwNj4YZ44UMG6OtFs61xpwIZxFaBP5sBCg4yadI";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"oneplace_dashboard_auth"}});
+
+// ─── 類別定義（對應 RPC cat 欄位）───────────────────────────
+const CATS = {
+  site:   {name:"案場資料", hex:"#64748b"}, // release/measure date
+  owner:  {name:"業主約",   hex:"#3b6fd4"}, // owner_contracts
+  rent:   {name:"業主租金", hex:"#0ea5a0"}, // rent_periods（壓縮成變化點）
+  switch: {name:"案場切換", hex:"#8b5cf6"}, // property_switch_log
+  viewing:{name:"帶看簽約", hex:"#0891b2"}, // viewing_tasks + signing_tasks
+  tenant: {name:"房間出租", hex:"#f59e0b"}, // tenant_contracts
+  listing:{name:"房間牌價", hex:"#65a30d"}, // unit_rent_history
+  fee:    {name:"管理費",   hex:"#ec4899"}, // property_management_fees（僅最近一次）
+  utility:{name:"水電瓦斯", hex:"#6366f1"}, // property_utilities
+  works:  {name:"工務修繕", hex:"#ef4444"}, // renovations + tickets + 驗收/服務檢查
+  capex:  {name:"請款",     hex:"#a16207"}, // payment_requests(items 綁案場)
+  oplog:  {name:"工務日誌", hex:"#78716c"}, // operation_logs（預設關閉）
+  line:   {name:"LINE對話記錄", hex:"#06C755"}, // property_line_events（LLM 萃取）
+};
+const DEFAULT_OFF = new Set(["oplog"]); // 量大的類別預設不顯示
+
+// ─── 狀態 ────────────────────────────────────────────────────
+let PROPS=[];            // 案場清單
+let EVENTS=[];           // 目前案場事件
+let curProp=null;
+let selCats=new Set(Object.keys(CATS).filter(k=>!DEFAULT_OFF.has(k)));
+let keyword="", newestFirst=true;
+let onlyMissing=false;   // 只看尚缺 LINE 的案場
+
+const $=id=>document.getElementById(id);
+function showErr(m){$("errBox").innerHTML=m?`<div class="err">${m}</div>`:"";}
+
+// ─── 案場選擇器 ──────────────────────────────────────────────
+async function loadProps(){
+  try{
+    const {data,error}=await sb.rpc("dashboard_timeline_properties");
+    if(error) throw error;
+    PROPS=data||[];
+    $("siteBox").disabled=false;
+    $("siteBox").placeholder=`共 ${PROPS.length} 個案場，輸入編號/名稱搜尋…`;
+    renderCov();
+  }catch(e){ showErr("載入案場清單失敗："+(e.message||e)); }
+}
+
+// ─── LINE 覆蓋率列 + 「只看尚缺」切換 ─────────────────────────
+// 三態：已萃取(has_line) / 已上傳待處理(has_upload且未萃取) / 尚缺(兩者皆無)
+// 排除非實體案場（帳務/課程/辦公室那類）
+const SKIP_REGION=new Set(["其他","辦公室"]);
+function isMissing(p){ return p.status==="active" && !p.has_line && !p.has_upload && !SKIP_REGION.has(p.region); }
+function renderCov(){
+  const done=PROPS.filter(p=>p.has_line).length;
+  const pend=PROPS.filter(p=>p.has_upload&&!p.has_line).length;
+  const miss=PROPS.filter(isMissing).length;
+  $("covBar").innerHTML=
+    `🟢 已萃取 <b style="color:#06C755">${done}</b> ｜ 🟡 已上傳待處理 <b style="color:#b45309">${pend}</b> ｜ 尚缺 <b class="miss">${miss}</b> 個（進行中案場）`+
+    `<button class="covToggle ${onlyMissing?"on":""}" id="covToggle">${onlyMissing?"✓ 只看尚缺":"只看尚缺的案場"}</button>`;
+  $("covToggle").onclick=()=>{
+    onlyMissing=!onlyMissing;
+    renderCov();
+    $("siteBox").value="";
+    renderSiteList("");
+    $("siteBox").focus();
+  };
+}
+function renderSiteList(kw){
+  const list=$("siteList");
+  const k=(kw||"").trim().toLowerCase();
+  const hits=PROPS
+    .filter(p=>!onlyMissing||isMissing(p))
+    .filter(p=>!k||`${p.site_no} ${p.name||""} ${p.region||""} ${p.city||""}${p.district||""} ${p.status||""}`.toLowerCase().includes(k))
+    .slice(0,onlyMissing?800:60);
+  const tag=p=>p.has_line?`<span class="lineok">LINE ✓</span>`
+              :p.has_upload?`<span class="linepend">待處理</span>`
+              :(isMissing(p)?`<span class="linemiss">尚缺</span>`:"");
+  list.innerHTML=hits.length?hits.map(p=>
+    `<div class="opt" data-id="${p.id}">
+       <span class="no">${p.site_no??""}</span><span>${p.name??""}</span>
+       <span class="rg">${(p.city??"")+(p.district??"")}</span>
+       ${tag(p)}
+       <span class="st">${p.status??""}</span>
+     </div>`).join(""):`<div class="opt" style="color:var(--sub)">${onlyMissing?"沒有尚缺的案場 🎉":"找不到案場"}</div>`;
+  list.querySelectorAll(".opt[data-id]").forEach(o=>o.onclick=()=>selectProp(o.dataset.id));
+  list.classList.add("open");
+}
+$("siteBox").oninput=e=>renderSiteList(e.target.value);
+$("siteBox").onfocus=e=>renderSiteList(e.target.value);
+document.addEventListener("click",e=>{if(!e.target.closest(".siteSel"))$("siteList").classList.remove("open");});
+
+async function selectProp(id){
+  curProp=PROPS.find(p=>p.id===id); if(!curProp) return;
+  $("siteList").classList.remove("open");
+  $("siteBox").value=`${curProp.site_no}｜${curProp.name}`;
+  $("vtl").innerHTML=`<div class="loading">載入 ${curProp.name} 的歷程中…</div>`;
+  showErr("");
+  try{
+    const {data,error}=await sb.rpc("dashboard_timeline_events",{p_property_id:id});
+    if(error) throw error;
+    EVENTS=data||[];
+    renderTimeline();
+  }catch(e){ showErr("載入事件失敗："+(e.message||e)); $("vtl").innerHTML=""; }
+}
+
+// ─── 類別 chips ──────────────────────────────────────────────
+function renderChips(){
+  const allOn=selCats.size===Object.keys(CATS).length;
+  const cc=$("catChips");
+  cc.innerHTML=`<div class="chip ${allOn?"on":""}" data-cat="all">全部</div>`+
+    Object.entries(CATS).map(([k,c])=>{
+      const on=selCats.has(k);
+      return `<div class="chip" data-cat="${k}" style="${on?`background:${c.hex};border-color:${c.hex};color:#fff`:""}">
+        <span class="dot" style="background:${on?"#fff":c.hex}"></span>${c.name}</div>`;
+    }).join("");
+  cc.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{
+    const k=ch.dataset.cat;
+    if(k==="all"){ selCats=new Set(Object.keys(CATS)); }
+    else if(selCats.size===Object.keys(CATS).length){ selCats=new Set([k]); }
+    else { selCats.has(k)?(selCats.size>1&&selCats.delete(k)):selCats.add(k); }
+    renderChips(); renderTimeline();
+  });
+}
+
+// ─── 搜尋 / 排序 ─────────────────────────────────────────────
+$("searchBox").oninput=function(){keyword=this.value.trim();$("searchClear").style.display=keyword?"block":"none";renderTimeline();};
+$("searchClear").onclick=function(){$("searchBox").value="";keyword="";this.style.display="none";renderTimeline();$("searchBox").focus();};
+$("sortBtn").onclick=function(){
+  newestFirst=!newestFirst;
+  this.textContent=newestFirst?"排序：最新在上 ↓":"排序：最舊在上 ↑";
+  renderTimeline();
+};
+
+// ─── 過濾 / 工具 ─────────────────────────────────────────────
+function filtered(){
+  const kw=keyword.toLowerCase();
+  return EVENTS
+    .filter(e=>selCats.has(e.cat))
+    .filter(e=>!kw||((e.title||"")+(e.desc||"")+(e.date||"")+(CATS[e.cat]?.name||"")).toLowerCase().includes(kw))
+    .sort((a,b)=>newestFirst?b.date.localeCompare(a.date):a.date.localeCompare(b.date));
+}
+function fmtDur(a,b){
+  const d=Math.round((new Date(b)-new Date(a))/86400000);
+  if(d<=0) return "";
+  return d>=60?`為期約 ${(d/30.4).toFixed(1)} 個月`:`為期 ${d} 天`;
+}
+function esc(s){return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
+function hl(s){
+  const t=esc(s);
+  if(!keyword) return t;
+  const i=t.toLowerCase().indexOf(keyword.toLowerCase());
+  if(i<0) return t;
+  return t.slice(0,i)+"<mark>"+t.slice(i,i+keyword.length)+"</mark>"+t.slice(i+keyword.length);
+}
+
+// ─── 直式時間軸 ──────────────────────────────────────────────
+function renderTimeline(){
+  if(!curProp){$("countLbl").textContent="";return;}
+  const list=filtered();
+  $("countLbl").textContent=`共 ${list.length} 筆事件`;
+  const el=$("vtl");
+  if(!list.length){el.innerHTML=`<div class="empty">此篩選條件下沒有事件</div>`;return;}
+  const isMilestone=e=>e.title.startsWith("業主約簽約")||e.title==="工務丈量"||e.title.startsWith("第一人入駐");
+  let html="", curYear="", side=0;
+  list.forEach(e=>{
+    const y=e.date.slice(0,4);
+    if(y!==curYear){curYear=y;html+=`<div class="vyear"><span>${y}年</span></div>`;}
+    const c=CATS[e.cat]||{name:e.cat,hex:"#94a3b8"}, L=side%2===0; side++;
+    const dur=e.end?fmtDur(e.date,e.end):"";
+    const ms=isMilestone(e);
+    html+=`<div class="vrow ${L?"L":"R"}${ms?" ms":""}" style="--e:${c.hex}">
+      <div class="node"></div>
+      <div class="stem"></div>
+      <div class="vcard">
+        <div class="top">
+          <span class="date">${e.date}${e.end?` → ${e.end}`:""}</span>
+          <span class="tag">${c.name}</span>
+          ${ms?`<span class="msbadge">⭐ 里程碑</span>`:""}
+        </div>
+        <div class="title">${hl(e.title)}</div>
+        ${e.desc?`<div class="desc">${hl(e.desc)}</div>`:""}
+        ${dur?`<div class="dur">${dur}</div>`:""}
+      </div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+renderChips();
+loadProps();
+</script>
+</body>
+</html>
