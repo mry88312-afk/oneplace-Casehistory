@@ -2,7 +2,6 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const INGEST_SECRET = Deno.env.get("CASE_HISTORY_INGEST_SECRET") || "";
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -30,11 +29,17 @@ async function rpc(name: string, args: Record<string, unknown>) {
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") return response({ ok: false, error: "POST only" }, 405);
-  if (!INGEST_SECRET || request.headers.get("x-case-history-secret") !== INGEST_SECRET) {
-    return response({ ok: false, error: "unauthorized" }, 401);
-  }
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return response({ ok: false, error: "Supabase service configuration missing" }, 500);
+  }
+
+  try {
+    const authorized = await rpc("dashboard_case_history_authorize", {
+      p_secret: request.headers.get("x-case-history-secret") || "",
+    });
+    if (authorized !== true) return response({ ok: false, error: "unauthorized" }, 401);
+  } catch {
+    return response({ ok: false, error: "authorization unavailable" }, 503);
   }
 
   let body: Record<string, unknown>;
