@@ -1,0 +1,2 @@
+[functions.case-history-monthly]
+verify_jwt = false

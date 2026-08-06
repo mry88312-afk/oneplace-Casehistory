@@ -19,6 +19,21 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
   .panel .label{font-size:12px;color:var(--sub);margin-bottom:8px}
 
+  /* LINE AI 月結總結 */
+  .rollup{display:none;border-left:4px solid #06C755}
+  .rollup.show{display:block}
+  .rollupHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .rollupHead h2{font-size:16px}
+  .aiBadge{font-size:10.5px;color:#047857;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:999px;padding:2px 8px;font-weight:700}
+  .rollupMeta{font-size:11px;color:var(--sub);margin-left:auto}
+  .rollupSummary{font-size:13.5px;line-height:1.75;white-space:pre-wrap}
+  .rollupCols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+  .rollupCol{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#fafbfc}
+  .rollupCol h3{font-size:12px;margin-bottom:5px}
+  .rollupCol ul{padding-left:18px;color:var(--sub);font-size:12px;line-height:1.6}
+  .rollupCol .none{color:#94a3b8;font-size:12px}
+  @media(max-width:720px){.rollupCols{grid-template-columns:1fr}.rollupMeta{width:100%;margin-left:0}}
+
   /* 案場選擇器（可搜尋下拉） */
   .siteSel{position:relative}
   .siteSel input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff}
@@ -106,6 +121,8 @@
     <div class="covbar" id="covBar"></div>
   </div>
 
+  <section class="panel rollup" id="lineRollup" aria-live="polite"></section>
+
   <div class="panel">
     <div class="label">事件類別（可多選）</div>
     <div class="chips" id="catChips"></div>
@@ -150,6 +167,7 @@ const DEFAULT_OFF = new Set(["oplog"]); // 量大的類別預設不顯示
 // ─── 狀態 ────────────────────────────────────────────────────
 let PROPS=[];            // 案場清單
 let EVENTS=[];           // 目前案場事件
+let ROLLUP=null;          // site-management 每月 AI 滾動總結
 let curProp=null;
 let selCats=new Set(Object.keys(CATS).filter(k=>!DEFAULT_OFF.has(k)));
 let keyword="", newestFirst=true;
@@ -219,11 +237,19 @@ async function selectProp(id){
   $("siteList").classList.remove("open");
   $("siteBox").value=`${curProp.site_no}｜${curProp.name}`;
   $("vtl").innerHTML=`<div class="loading">載入 ${curProp.name} 的歷程中…</div>`;
+  $("lineRollup").classList.remove("show");
+  $("lineRollup").innerHTML="";
   showErr("");
   try{
-    const {data,error}=await sb.rpc("dashboard_timeline_events",{p_property_id:id});
-    if(error) throw error;
-    EVENTS=data||[];
+    const [eventsResult,rollupResult]=await Promise.all([
+      sb.rpc("dashboard_timeline_events",{p_property_id:id}),
+      sb.rpc("dashboard_line_rollup",{p_property_id:id}),
+    ]);
+    if(eventsResult.error) throw eventsResult.error;
+    if(rollupResult.error) throw rollupResult.error;
+    EVENTS=eventsResult.data||[];
+    ROLLUP=rollupResult.data&&Object.keys(rollupResult.data).length?rollupResult.data:null;
+    renderRollup();
     renderTimeline();
   }catch(e){ showErr("載入事件失敗："+(e.message||e)); $("vtl").innerHTML=""; }
 }
@@ -270,6 +296,31 @@ function fmtDur(a,b){
   return d>=60?`為期約 ${(d/30.4).toFixed(1)} 個月`:`為期 ${d} 天`;
 }
 function esc(s){return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
+
+function renderRollup(){
+  const el=$("lineRollup");
+  if(!ROLLUP){el.classList.remove("show");el.innerHTML="";return;}
+  const list=(title,items,empty)=>{
+    const safe=Array.isArray(items)?items.filter(x=>typeof x==="string"&&x.trim()):[];
+    return `<div class="rollupCol"><h3>${title}</h3>${safe.length
+      ?`<ul>${safe.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
+      :`<div class="none">${empty}</div>`}</div>`;
+  };
+  const period=ROLLUP.source_period_start&&ROLLUP.source_period_end
+    ?`${esc(ROLLUP.source_period_start)} ～ ${esc(ROLLUP.source_period_end)}`:"";
+  el.innerHTML=`
+    <div class="rollupHead">
+      <h2>LINE 案場目前總結</h2><span class="aiBadge">AI 每月彙整</span>
+      <span class="rollupMeta">資料期間 ${period}</span>
+    </div>
+    <div class="rollupSummary">${esc(ROLLUP.summary)}</div>
+    <div class="rollupCols">
+      ${list("✅ 已完成",ROLLUP.completed_items,"本期無已完成事項")}
+      ${list("⏳ 追蹤中",ROLLUP.tracking_items,"目前無追蹤中事項")}
+      ${list("⚠️ 未解決",ROLLUP.unresolved_items,"目前無未解決事項")}
+    </div>`;
+  el.classList.add("show");
+}
 function hl(s){
   const t=esc(s);
   if(!keyword) return t;
