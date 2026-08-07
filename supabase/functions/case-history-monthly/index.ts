@@ -84,6 +84,16 @@ Deno.serve(async (request) => {
         p_limit: body.limit,
       }) });
     }
+    if (mode === "monitor") {
+      const siteNos = Array.isArray(body.site_nos)
+        ? body.site_nos.filter((value): value is string => typeof value === "string")
+        : [];
+      return response({ ok: true, projects: await rpc("dashboard_line_monthly_monitor", {
+        p_site_nos: siteNos,
+        p_period_start: body.period_start,
+        p_period_end: body.period_end,
+      }) });
+    }
     return response({ ok: false, error: "unknown mode" }, 400);
   } catch (error) {
     return response({
