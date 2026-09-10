@@ -51,6 +51,16 @@ Deno.serve(async (request) => {
 
   const mode = typeof body.mode === "string" ? body.mode : "";
   try {
+    if (mode === "versions") {
+      return response({ ok: true, versions: await rpc("dashboard_line_monthly_versions", {
+        p_site_no: body.site_no, p_period_start: body.period_start,
+      }) });
+    }
+    if (mode === "publish") {
+      return response(await rpc("dashboard_line_monthly_publish", {
+        p_version_id: body.version_id, p_site_no: body.site_no, p_actor: body.actor,
+      }));
+    }
     if (mode === "prepare") {
       return response(await rpc("dashboard_line_monthly_prepare", {
         p_site_no: body.site_no,
