@@ -89,6 +89,12 @@ Deno.serve(async (request) => {
       });
       return response({ ok: true });
     }
+    if (mode === "skip") {
+      return response(await rpc("dashboard_line_monthly_skip", {
+        p_run_id: body.run_id,
+        p_error: body.error,
+      }));
+    }
     if (mode === "runs") {
       return response({ ok: true, runs: await rpc("dashboard_line_monthly_runs", {
         p_limit: body.limit,
