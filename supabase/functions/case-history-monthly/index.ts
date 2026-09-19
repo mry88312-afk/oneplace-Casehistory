@@ -51,6 +51,11 @@ Deno.serve(async (request) => {
 
   const mode = typeof body.mode === "string" ? body.mode : "";
   try {
+    if (mode === "extraction") {
+      return response(await rpc("dashboard_line_extraction", {
+        p_action: body.action, p_data: body.data,
+      }));
+    }
     if (mode === "versions") {
       return response({ ok: true, versions: await rpc("dashboard_line_monthly_versions", {
         p_site_no: body.site_no, p_period_start: body.period_start,
